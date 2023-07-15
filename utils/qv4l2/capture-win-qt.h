@@ -40,7 +40,7 @@ public:
 			unsigned ycbcr_enc, unsigned quantization, bool is_sdtv) {}
 	void setField(unsigned field) {}
 	void setBlending(bool enable) {}
-	void setLinearFilter(bool enable) {}
+    void setLinearFilter(bool enable) {}
 
 protected:
 	void resizeEvent(QResizeEvent *event);

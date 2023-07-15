@@ -1,3 +1,10 @@
+# v4l-vision
+
+This is a fork of v4l-utils, adding some simple blob detection and network control to the qv4l2 utility.
+
+The original v4l-utils repository is here:
+[https://github.com/gjasny/v4l-utils](https://github.com/gjasny/v4l-utils).
+
 # v4l-utils
 
 Linux utilities and libraries to handle media devices (TV devices, capture

@@ -116,6 +116,7 @@ private:
 	bool m_clear[64];
 	cv4l_fmt m_capSrcFormat;
 	cv4l_fmt m_capDestFormat;
+    cv4l_fmt m_grayDestFormat;
 	unsigned char *m_frameData;
 	unsigned m_nbuffers;
 	struct v4lconvert_data *m_convertData;
@@ -192,6 +193,8 @@ public:
 	virtual void closeEvent(QCloseEvent *event);
 	void updateLimRGBRange();
 	void updateColorspace();
+    void writeSettings();
+    void readSettings();
 	QAction *m_resetScalingAct;
 	QAction *m_useBlendingAct;
 	QAction *m_useLinearAct;
@@ -224,8 +227,10 @@ private:
 	int getVal(unsigned id);
 	long long getVal64(unsigned id);
 	QString getString(unsigned id);
+public:
 	void setVal(unsigned id, int v);
 	void setVal64(unsigned id, long long v);
+private:
 	void setString(unsigned id, const QString &v);
 	QString getCtrlFlags(unsigned flags);
 	void setWhat(QWidget *w, unsigned id, const QString &v);
@@ -237,7 +242,7 @@ private:
 	void updateStandard();
 	void updateFreq();
 	void updateFreqChannel();
-	bool showFrames();
+    bool showFrames();
 
 	// tpg
 	struct tpg_data m_tpg;
@@ -277,6 +282,7 @@ private:
 	QSocketNotifier *m_outNotifier;
 	QSocketNotifier *m_ctrlNotifier;
 	QImage *m_capImage;
+    QImage *m_grayImage;
 	int m_row, m_col, m_cols;
 	CtrlMap m_ctrlMap;
 	WidgetMap m_widgetMap;

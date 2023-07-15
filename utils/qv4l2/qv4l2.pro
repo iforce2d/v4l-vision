@@ -10,7 +10,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 greaterThan(QT_MAJOR_VERSION, 5): QT += core5compat
 
 # adjust to your local meson build path
-MESON_BUILD_PATH = $$PWD/build-meson
+#MESON_BUILD_PATH = $$PWD/build-meson
+MESON_BUILD_PATH = $$PWD/../../build
 
 # opengl: to disable opengl suppport comment out the following
 # line and the line '#define HAVE_QTGL 1' from ../../config.h
@@ -25,7 +26,13 @@ INCLUDEPATH += $$PWD/../v4l2-ctl/
 INCLUDEPATH += $$PWD/../v4l2-compliance
 
 # Input
-HEADERS += alsa_stream.h
+HEADERS += alsa_stream.h \
+    json/json-forwards.h \
+    json/json.h \
+    network.h \
+    overlay.h \
+    quickblob.h \
+    vision.h
 HEADERS += capture-win-gl.h
 HEADERS += capture-win.h
 HEADERS += capture-win-qt.h
@@ -37,7 +44,12 @@ HEADERS += ../common/v4l2-tpg.h
 HEADERS += ../common/v4l2-tpg-colors.h
 HEADERS += $$MESON_BUILD_PATH/config.h
 
-SOURCES += alsa_stream.c
+SOURCES += alsa_stream.c \
+    jsoncpp.cpp \
+    network.cpp \
+    overlay.cpp \
+    quickblob.cpp \
+    vision.cpp
 SOURCES += capture-win.cpp
 SOURCES += capture-win-gl.cpp
 SOURCES += capture-win-qt.cpp
@@ -58,3 +70,5 @@ LIBS += -lasound  # comment out in case alsa sound support is disabled/not avail
 LIBS += -lrt -ldl -ljpeg
 
 RESOURCES += qv4l2.qrc
+
+#DEFINES += HAVE_QTGL

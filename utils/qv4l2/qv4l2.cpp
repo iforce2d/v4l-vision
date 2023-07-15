@@ -40,6 +40,7 @@
 #include <QCloseEvent>
 #include <QInputDialog>
 #include <QActionGroup>
+#include <QSettings>
 
 #include <assert.h>
 #include <sys/mman.h>
@@ -57,6 +58,9 @@
 
 #include <libv4l-plugin.h>
 #include <libv4lconvert.h>
+
+#include "vision.h"
+#include "network.h"
 
 #define SDR_WIDTH 1024
 #define SDR_HEIGHT 512
@@ -118,6 +122,7 @@ ApplicationWindow::ApplicationWindow() :
 	m_outNotifier = NULL;
 	m_ctrlNotifier = NULL;
 	m_capImage = NULL;
+    m_grayImage = NULL;
 	m_frameData = NULL;
 	m_nbuffers = 0;
 	m_makeSnapshot = false;
@@ -278,12 +283,12 @@ ApplicationWindow::ApplicationWindow() :
 	m_capMenu->addAction(m_scalingAct);
 
 	if (CaptureWinGL::isSupported()) {
-		m_renderMethod = QV4L2_RENDER_GL;
+        m_renderMethod = QV4L2_RENDER_QT;
 
 		m_useGLAct = new QAction("Use Open&GL Rendering", this);
 		m_useGLAct->setStatusTip("Use GPU with OpenGL for video capture if set.");
 		m_useGLAct->setCheckable(true);
-		m_useGLAct->setChecked(true);
+        m_useGLAct->setChecked(false);
 		connect(m_useGLAct, SIGNAL(toggled(bool)), this, SLOT(setRenderMethod(bool)));
 		m_capMenu->addAction(m_useGLAct);
 
@@ -462,7 +467,7 @@ void ApplicationWindow::setDevice(const QString &device, bool rawOpen)
 	m_snapshotAct->setEnabled(canStream && has_vid_cap());
 	m_capMenu->setEnabled(canStream && isCapture && !has_radio_rx());
 #ifdef HAVE_QTGL
-	m_useGLAct->setEnabled(CaptureWinGL::isSupported());
+    m_useGLAct->setEnabled(CaptureWinGL::isSupported());
 #endif
 	m_genTab->sourceChangeSubscribe();
 	subscribeCtrlEvents();
@@ -497,7 +502,7 @@ void ApplicationWindow::setRenderMethod(bool checked)
 		return;
 	}
 
-	m_renderMethod = checked ? QV4L2_RENDER_GL : QV4L2_RENDER_QT;
+    m_renderMethod = checked ? QV4L2_RENDER_GL : QV4L2_RENDER_QT;
 	m_useBlendingAct->setEnabled(m_renderMethod == QV4L2_RENDER_GL);
 
 	newCaptureWin();
@@ -747,7 +752,7 @@ void ApplicationWindow::calculateFps()
 
 void ApplicationWindow::capVbiFrame()
 {
-	cv4l_buffer buf(m_queue);
+    /*cv4l_buffer buf(m_queue);
 	__u8 *data = NULL;
 	int s = 0;
 
@@ -834,18 +839,18 @@ void ApplicationWindow::capVbiFrame()
 	if (showFrames() && g_type() == V4L2_BUF_TYPE_VBI_CAPTURE)
 		m_capture->setFrame(m_capImage->width(), m_capImage->height(),
 				    m_capDestFormat.fmt.pix.pixelformat, m_capImage->bits(),
-				    NULL, NULL);
+                    NULL, NULL);
 
 	curStatus = statusBar()->currentMessage();
 	if (curStatus.isEmpty() || curStatus.startsWith("Frame: "))
 		statusBar()->showMessage(status);
 	if (m_frame == 1)
-		refresh();
+        refresh();*/
 }
 
 void ApplicationWindow::capSdrFrame()
 {
-	cv4l_buffer buf(m_queue);
+    /*cv4l_buffer buf(m_queue);
 	__u8 *data = NULL;
 	int s = 0;
 
@@ -897,10 +902,10 @@ void ApplicationWindow::capSdrFrame()
 			width = SDR_WIDTH;
 
 		m_capImage->fill(0);
-		/*
-		 * Draw two waveforms, each consisting of the first 'width + 1' samples
-		 * of the buffer, the top is for the I, the bottom is for the Q values.
-		 */
+        //
+          Draw two waveforms, each consisting of the first 'width + 1' samples
+          of the buffer, the top is for the I, the bottom is for the Q values.
+         //
 		for (unsigned i = 0; i < 2; i++) {
 			unsigned start = 255 - data[i];
 
@@ -943,7 +948,7 @@ void ApplicationWindow::capSdrFrame()
 	if (curStatus.isEmpty() || curStatus.startsWith("Frame: "))
 		statusBar()->showMessage(status);
 	if (m_frame == 1)
-		refresh();
+        refresh();*/
 }
 
 void ApplicationWindow::outFrame()
@@ -1016,6 +1021,112 @@ void ApplicationWindow::outFrame()
 		refresh();
 }
 
+#define CLIP(color) (unsigned char)(((color) > 0xFF) ? 0xff : (((color) < 0) ? 0 : (color)))
+
+void v4lconvert_yuyv_to_rgb24_mine(const unsigned char *src, unsigned char *dest, int width, int height, int stride)
+{
+    int j;
+
+    while (--height >= 0) {
+        for (j = 0; j + 1 < width; j += 2) {
+            int u = src[1];
+            int v = src[3];
+            int u1 = (((u - 128) << 7) +  (u - 128)) >> 6;
+            int rg = (((u - 128) << 1) +  (u - 128) +
+                    ((v - 128) << 2) + ((v - 128) << 1)) >> 3;
+                        int v1 = (((v - 128) << 1) +  (v - 128)) >> 1;
+
+            *dest++ = CLIP(src[0] + v1);
+            *dest++ = CLIP(src[0] - rg);
+            *dest++ = CLIP(src[0] + u1);
+
+            *dest++ = CLIP(src[2] + v1);
+            *dest++ = CLIP(src[2] - rg);
+            *dest++ = CLIP(src[2] + u1);
+            src += 4;
+        }
+        src += stride - (width * 2);
+    }
+}
+
+void v4lconvert_yuyv_to_grey24_mine(const unsigned char *src, unsigned char *dest, int width, int height, int stride)
+{
+    int j;
+
+    while (--height >= 0) {
+        for (j = 0; j + 1 < width; j += 2) {
+
+            *dest++ = (src[0]);
+            *dest++ = (src[0]);
+            *dest++ = (src[0]);
+
+            *dest++ = (src[2]);
+            *dest++ = (src[2]);
+            *dest++ = (src[2]);
+            src += 4;
+        }
+        src += stride - (width * 2);
+    }
+}
+
+void v4lconvert_yuyv_to_threshold24_mine(const unsigned char *src, unsigned char *dest, int width, int height, int stride)
+{
+    int j;
+
+    while (--height >= 0) {
+        for (j = 0; j + 1 < width; j += 2) {
+
+            uint8_t s0 = src[0] > visionParams.threshold ? 255 : 0;
+            uint8_t s2 = src[2] > visionParams.threshold ? 255 : 0;
+
+            *dest++ = s0;
+            *dest++ = s0;
+            *dest++ = s0;
+
+            *dest++ = s2;
+            *dest++ = s2;
+            *dest++ = s2;
+            src += 4;
+        }
+        src += stride - (width * 2);
+    }
+}
+
+void v4lconvert_yuyv_to_grey_mine(const unsigned char *src, unsigned char *dest, int width, int height, int stride)
+{
+    for (int i = 0; i < width*height; i++) {
+        dest[i] = src[i*2];
+    }
+    return;
+}
+
+int v4lconvert_convert_to_rgb24_for_display(struct v4lconvert_data *data,
+        const struct v4l2_format *src_fmt,  /* in */
+        const struct v4l2_format *dest_fmt, /* in */
+        unsigned char *src, int src_size, unsigned char *dest, int dest_size)
+{
+    switch ( visionParams.displayType ) {
+    case VDT_GREY:
+        v4lconvert_yuyv_to_grey24_mine(src, dest, dest_fmt->fmt.pix.width, dest_fmt->fmt.pix.height, dest_fmt->fmt.pix.width * 2);
+        break;
+    case VDT_THRESHOLD:
+        v4lconvert_yuyv_to_threshold24_mine(src, dest, dest_fmt->fmt.pix.width, dest_fmt->fmt.pix.height, dest_fmt->fmt.pix.width * 2);
+        break;
+    default:
+        v4lconvert_yuyv_to_rgb24_mine(src, dest, dest_fmt->fmt.pix.width, dest_fmt->fmt.pix.height, dest_fmt->fmt.pix.width * 2); break;
+    }
+    return 0;
+}
+
+int v4lconvert_convert_to_grey_for_processing(struct v4lconvert_data *data,
+        const struct v4l2_format *src_fmt,  /* in */
+        const struct v4l2_format *dest_fmt, /* in */
+        unsigned char *src, int src_size, unsigned char *dest, int dest_size)
+{
+
+    v4lconvert_yuyv_to_grey_mine(src, dest, dest_fmt->fmt.pix.width, dest_fmt->fmt.pix.height, dest_fmt->fmt.pix.width * 2);
+}
+
 void ApplicationWindow::capFrame()
 {
 	cv4l_buffer buf(m_queue);
@@ -1056,7 +1167,7 @@ void ApplicationWindow::capFrame()
 						 m_frameData, s,
 						 m_capImage->bits(), m_capDestFormat.fmt.pix.sizeimage);
 			if (err != -1)
-				plane[0] = m_capImage->bits();
+                plane[0] = m_capImage->bits();
 		}
 		break;
 
@@ -1095,14 +1206,25 @@ void ApplicationWindow::capFrame()
 			plane[2] += buf.g_data_offset(2);
 			bytesused[2] = buf.g_bytesused(2) - buf.g_data_offset(2);
 		}
-		if (showFrames() && m_mustConvert) {
-			err = v4lconvert_convert(m_convertData, &m_capSrcFormat, &m_capDestFormat,
+        if (showFrames() && m_mustConvert) {
+
+            v4lconvert_convert_to_grey_for_processing(m_convertData, &m_capSrcFormat, &m_grayDestFormat,
+                               plane[0], bytesused[0], m_grayImage->bits(),
+                               m_grayDestFormat.fmt.pix.sizeimage);
+
+            runVision(m_grayImage);
+            doNetworkReport();
+
+            err = v4lconvert_convert_to_rgb24_for_display(m_convertData, &m_capSrcFormat, &m_capDestFormat,
 						 plane[0], bytesused[0], m_capImage->bits(),
-						 m_capDestFormat.fmt.pix.sizeimage);
-			if (err != -1) {
-				plane[0] = m_capImage->bits();
-				bytesused[0] = m_capDestFormat.fmt.pix.sizeimage;
-			}
+                         m_capDestFormat.fmt.pix.sizeimage);
+            if (err != -1) {
+                plane[0] = m_capImage->bits();
+                bytesused[0] = m_capDestFormat.fmt.pix.sizeimage;
+            }
+
+
+
 		}
 		if (m_makeSnapshot)
 			makeSnapshot(plane[0], bytesused[0]);
@@ -1137,10 +1259,10 @@ void ApplicationWindow::capFrame()
 	if (plane[0] == NULL && showFrames())
 		status.append(" Error: Unsupported format.");
 
-	if (showFrames())
-		m_capture->setFrame(m_capImage->width(), m_capImage->height(),
-				    m_capDestFormat.g_pixelformat(),
-				    plane[0], plane[1], plane[2]);
+    if (showFrames())
+        m_capture->setFrame(m_capImage->width(), m_capImage->height(),
+                    m_capDestFormat.g_pixelformat(),
+                    plane[0], plane[1], plane[2]);
 
 	if (m_capMethod == methodMmap || m_capMethod == methodUser) {
 		if (m_clear[buf.g_index()]) {
@@ -1149,7 +1271,7 @@ void ApplicationWindow::capFrame()
 				memset(m_queue.g_dataptr(buf.g_index(), 1), 0, buf.g_length(1));
 				if (m_queue.g_dataptr(buf.g_index(), 2))
 					memset(m_queue.g_dataptr(buf.g_index(), 2), 0, buf.g_length(2));
-			}
+            }
 			m_clear[buf.g_index()] = false;
 		}
 			
@@ -1411,12 +1533,14 @@ void ApplicationWindow::capStart(bool start)
 		m_capNotifier = NULL;
 		delete m_capImage;
 		m_capImage = NULL;
+//        delete m_grayImage;
+        m_grayImage = NULL;
 		return;
 	}
 	m_frame = m_fps = 0;
 	m_capMethod = m_genTab->capMethod();
 
-	if (m_genTab->isSlicedVbi()) {
+    /*if (m_genTab->isSlicedVbi()) {
 		cv4l_fmt fmt;
 		v4l2_std_id std;
 
@@ -1442,7 +1566,7 @@ void ApplicationWindow::capStart(bool start)
 		}
 		return;
 	}
-	if (m_genTab->isVbi()) {
+    if (m_genTab->isVbi()) {
 		cv4l_fmt fmt;
 		v4l2_std_id std;
 
@@ -1516,7 +1640,7 @@ void ApplicationWindow::capStart(bool start)
 			connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capSdrFrame()));
 		}
 		return;
-	}
+    }*/
 
 	m_capSrcFormat.s_type(g_type());
 	if (g_fmt(m_capSrcFormat)) {
@@ -1530,6 +1654,7 @@ void ApplicationWindow::capStart(bool start)
 	m_frameData = new unsigned char[m_capSrcFormat.g_sizeimage(0) +
 					m_capSrcFormat.g_sizeimage(1)];
 	m_capDestFormat = m_capSrcFormat;
+    m_grayDestFormat = m_capSrcFormat;
 
 	if (m_capture->hasNativeFormat(m_capSrcFormat.g_pixelformat())) {
 		width = m_capSrcFormat.g_width();
@@ -1555,6 +1680,11 @@ void ApplicationWindow::capStart(bool start)
 		height = m_capDestFormat.g_height();
 		pixfmt = m_capDestFormat.g_pixelformat();
 		field = m_capDestFormat.g_field();
+
+
+        m_grayDestFormat.s_pixelformat(V4L2_PIX_FMT_GREY);
+        m_grayDestFormat.s_sizeimage(width * height);
+
 	}
 
 	// Ensure that the initial image is large enough for native 32 bit per pixel formats
@@ -1582,13 +1712,16 @@ void ApplicationWindow::capStart(bool start)
 	}
 	m_capImage = new QImage(width, height, dstFmt);
 	m_capImage->fill(0);
-	
+
+    m_grayImage = new QImage(width,height,QImage::Format_Grayscale8);
+    m_grayImage->fill(0);
+
 	updatePixelAspectRatio();
 	m_capture->setField(field);
 
 	m_capture->setWindowSize(QSize(width, height));
-	m_capture->setFrame(m_capImage->width(), m_capImage->height(),
-			    pixfmt, m_capImage->bits(), NULL, NULL);
+    m_capture->setFrame(m_capImage->width(), m_capImage->height(),
+                pixfmt, m_capImage->bits(), NULL, NULL);
 	m_capture->makeFullScreen(m_makeFullScreenAct->isChecked());
 	updateColorspace();
 	if (showFrames())
@@ -1599,6 +1732,10 @@ void ApplicationWindow::capStart(bool start)
 		m_capNotifier = new QSocketNotifier(g_fd(), QSocketNotifier::Read, m_tabs);
 		connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capFrame()));
 	}
+
+    setVal(VISION_CTRL_FOCUS_ID, visionParams.focus-17);
+    setVal(VISION_CTRL_FOCUS_ID, visionParams.focus);
+    setVal(VISION_CTRL_ZOOM_ID, visionParams.zoom);
 }
 
 void ApplicationWindow::makeFullScreen(bool checked)
@@ -1622,8 +1759,10 @@ void ApplicationWindow::closeDevice()
 		if (m_capNotifier) {
 			delete m_capNotifier;
 			delete m_capImage;
+            delete m_grayImage;
 			m_capNotifier = NULL;
 			m_capImage = NULL;
+            m_grayImage = NULL;
 		}
 		if (m_outNotifier) {
 			delete m_outNotifier;
@@ -1795,6 +1934,57 @@ void ApplicationWindow::closeEvent(QCloseEvent *event)
 	event->accept();
 }
 
+void ApplicationWindow::writeSettings()
+{
+    QSettings qsettings( "iforce2d", "qv4l2" );
+
+    qsettings.beginGroup( "visionparams" );
+
+    qsettings.setValue( "color", visionParams.color );
+    qsettings.setValue( "threshold", visionParams.threshold );
+    qsettings.setValue( "masksize", visionParams.maskSize );
+    qsettings.setValue( "displaytype", visionParams.displayType );
+    qsettings.setValue( "minpixels", visionParams.minPixels );
+    qsettings.setValue( "maxpixels", visionParams.maxPixels );
+    qsettings.setValue( "minwidth", visionParams.minWidth );
+    qsettings.setValue( "maxwidth", visionParams.maxWidth );
+    //qsettings.setValue( "maxaspectdiff", visionParams.maxAspectDiff );
+    qsettings.setValue( "displaytype", visionParams.displayType );
+    qsettings.setValue( "overlayelements", visionParams.overlayElements );
+
+    qsettings.setValue( "focus", visionParams.focus );
+    qsettings.setValue( "zoom", visionParams.zoom );
+
+    qsettings.endGroup();
+}
+
+void ApplicationWindow::readSettings()
+{
+    QSettings qsettings( "iforce2d", "qv4l2" );
+
+    qsettings.beginGroup( "visionparams" );
+
+    visionParams.color = qsettings.value("color", VISION_DEFAULT_COLOR).toInt();
+    visionParams.threshold = qsettings.value("threshold", VISION_DEFAULT_THRESHOLD).toInt();
+    visionParams.maskSize = qsettings.value("masksize", VISION_DEFAULT_MASKSIZE).toInt();
+    visionParams.displayType = qsettings.value("displaytype", VISION_DEFAULT_DISPLAYTYPE).toInt();
+    visionParams.minPixels = qsettings.value( "minpixels", VISION_DEFAULT_MINPIXELS ).toInt();
+    visionParams.maxPixels = qsettings.value( "maxpixels", VISION_DEFAULT_MAXPIXELS ).toInt();
+    visionParams.minWidth = qsettings.value( "minwidth", VISION_DEFAULT_MINWIDTH ).toInt();
+    visionParams.maxWidth = qsettings.value( "maxwidth", VISION_DEFAULT_MAXWIDTH ).toInt();
+    //visionParams.maxAspectDiff = qsettings.value( "maxaspectdiff", VISION_DEFAULT_MAXASPECTDIFF ).toInt();
+    visionParams.displayType = qsettings.value( "displaytype", VISION_DEFAULT_DISPLAYTYPE ).toInt();
+    visionParams.overlayElements = qsettings.value( "overlayelements", 0xFFFFFFFF ).toInt();
+
+    visionParams.focus = qsettings.value("focus", VISION_DEFAULT_FOCUS).toInt();
+    visionParams.zoom = qsettings.value("zoom", VISION_DEFAULT_ZOOM).toInt();
+
+    qsettings.endGroup();
+
+    setVal(VISION_CTRL_FOCUS_ID, visionParams.focus);
+    setVal(VISION_CTRL_ZOOM_ID, visionParams.zoom);
+}
+
 ApplicationWindow *g_mw;
 
 static void usage()
@@ -1885,7 +2075,7 @@ int main(int argc, char **argv)
 			if (!processLongOption(args, i, video_device))
 				return 0;
 		} else if (args[i].startsWith("-V")) {
-			if (!processShortOption(args, i, vbi_device))
+            if (!processShortOption(args, i, vbi_device))
 				return 0;
 		} else if (args[i].startsWith("--vbi-device")) {
 			if (!processLongOption(args, i, vbi_device))
@@ -1921,12 +2111,30 @@ int main(int argc, char **argv)
 	else if (radio_device != nullptr)
 		device = getDeviceName("/dev/radio", radio_device);
 	else if (sdr_device != nullptr)
-		device = getDeviceName("/dev/swradio", sdr_device);
+        device = getDeviceName("/dev/swramainWindow.readPositionSettings();dio", sdr_device);
 	else
 		device = "/dev/video0";
 
-	g_mw->setDevice(device, raw);
+    initVision();
+    initSockets();
+    startListening();
+
+    g_mw->setDevice(device, raw);
 	g_mw->show();
+
+    g_mw->readSettings();
+
 	a.connect(&a, SIGNAL(lastWindowClosed()), &a, SLOT(quit()));
-	return a.exec();
+
+
+
+
+
+
+
+    int ret = a.exec();
+
+    g_mw->writeSettings();
+
+    return ret;
 }

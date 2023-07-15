@@ -19,6 +19,9 @@
 
 #include "capture-win-qt.h"
 
+#include <QPainter>
+#include "overlay.h"
+
 CaptureWinQt::CaptureWinQt(ApplicationWindow *aw) :
 	CaptureWin(aw),
 	m_image(new QImage(0, 0, QImage::Format_Invalid)),
@@ -63,7 +66,7 @@ void CaptureWinQt::setRenderFrame()
 	if (m_frame.updated || m_image->format() != dstFmt ||
 	    m_image->width() != m_frame.size.width() ||
 	    m_image->height() != m_frame.size.height()) {
-		delete m_image;
+        delete m_image;
 		m_image = new QImage(m_frame.size.width(),
 				     m_frame.size.height(),
 				     dstFmt);
@@ -101,15 +104,17 @@ void CaptureWinQt::paintFrame()
 
 	unsigned char *data = (m_data == NULL) ? m_image->bits() : m_data;
 
-	QImage displayFrame(&data[m_cropOffset],
+    Overlay displayFrame(&data[m_cropOffset],
 			    m_crop.size.width(), m_crop.size.height(),
 			    m_image->width() * (m_image->depth() / 8),
-			    m_image->format());
+                m_image->format());
 
-	QPixmap img = QPixmap::fromImage(displayFrame);
+    displayFrame.vision();
+
+    QPixmap img = QPixmap::fromImage(displayFrame);
 
 	// No scaling is performed by scaled() if the scaled size is equal to original size
-	img = img.scaled(m_scaledSize.width(), m_scaledSize.height(), Qt::IgnoreAspectRatio);
+    img = img.scaled(m_scaledSize.width(), m_scaledSize.height(), Qt::IgnoreAspectRatio);
 
 	m_videoSurface->setPixmap(img);
 }
@@ -128,7 +133,7 @@ void CaptureWinQt::stop()
 bool CaptureWinQt::hasNativeFormat(__u32 format)
 {
 	QImage::Format fmt;
-	return findNativeFormat(format, fmt);
+    return findNativeFormat(format, fmt);
 }
 
 bool CaptureWinQt::findNativeFormat(__u32 format, QImage::Format &dstFmt)
@@ -166,3 +171,5 @@ bool CaptureWinQt::findNativeFormat(__u32 format, QImage::Format &dstFmt)
 	}
 	return false;
 }
+
+
