@@ -1285,8 +1285,20 @@ void ApplicationWindow::capFrame()
 	curStatus = statusBar()->currentMessage();
 	if (curStatus.isEmpty() || curStatus.startsWith("Frame: ") || curStatus.startsWith("No frame"))
 		statusBar()->showMessage(status);
-	if (m_frame == 1)
-		refresh();
+    if (m_frame == 1) {
+
+        refresh();
+
+        setVal(VISION_CTRL_AUTOFOCUS_ID, 0);
+        updateCtrl(VISION_CTRL_AUTOFOCUS_ID); // need this to make the slider enabled
+
+        // set twice to trigger a refresh, because if the value doesn't change it is not applied
+        setVal(VISION_CTRL_FOCUS_ID, visionParams.focus-17);
+        setVal(VISION_CTRL_FOCUS_ID, visionParams.focus);
+        updateCtrl(VISION_CTRL_FOCUS_ID);
+
+        setVal(VISION_CTRL_ZOOM_ID, visionParams.zoom);
+    }
 }
 
 void ApplicationWindow::stopStreaming()
@@ -1733,9 +1745,8 @@ void ApplicationWindow::capStart(bool start)
 		connect(m_capNotifier, SIGNAL(activated(int)), this, SLOT(capFrame()));
 	}
 
-    setVal(VISION_CTRL_FOCUS_ID, visionParams.focus-17);
-    setVal(VISION_CTRL_FOCUS_ID, visionParams.focus);
-    setVal(VISION_CTRL_ZOOM_ID, visionParams.zoom);
+
+
 }
 
 void ApplicationWindow::makeFullScreen(bool checked)

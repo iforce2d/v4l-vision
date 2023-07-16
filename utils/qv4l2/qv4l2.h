@@ -216,7 +216,9 @@ private:
 	void addTpgTab(int m_winWidth);
 	void finishGrid(QGridLayout *grid, unsigned which);
 	void addCtrl(QGridLayout *grid, const struct v4l2_query_ext_ctrl &qec);
-	void updateCtrl(unsigned id);
+public:
+    void updateCtrl(unsigned id);
+private:
 	void updateCtrlRange(unsigned id, __s32 val);
 	void subscribeCtrlEvents();
 	void refresh(unsigned which);
@@ -224,10 +226,10 @@ private:
 	void calculateFps();
 	void makeSnapshot(unsigned char *buf, unsigned size);
 	void setDefaults(unsigned which);
-	int getVal(unsigned id);
-	long long getVal64(unsigned id);
-	QString getString(unsigned id);
 public:
+    int getVal(unsigned id);
+	long long getVal64(unsigned id);
+    QString getString(unsigned id);
 	void setVal(unsigned id, int v);
 	void setVal64(unsigned id, long long v);
 private:

@@ -40,6 +40,8 @@
 #include <sys/ioctl.h>
 #include <errno.h>
 
+#include "vision.h"
+
 static bool is_valid_type(__u32 type)
 {
 	switch (type) {

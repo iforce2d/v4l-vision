@@ -180,11 +180,18 @@ int parseJSON(char* inBuf) {
     if ( incomingValue.isMember( "focus" ) ) {
         visionParams.focus = incomingValue.get( "focus", VISION_DEFAULT_FOCUS).asInt();
         g_mw->setVal(VISION_CTRL_FOCUS_ID, visionParams.focus);
+        int v = g_mw->getVal(VISION_CTRL_AUTOFOCUS_ID);
+        if ( v ) {
+            g_mw->setVal(VISION_CTRL_AUTOFOCUS_ID, 0);
+            g_mw->updateCtrl(VISION_CTRL_AUTOFOCUS_ID);
+        }
     }
     if ( incomingValue.isMember( "zoom" ) ) {
         visionParams.zoom = incomingValue.get( "zoom", VISION_DEFAULT_ZOOM).asInt();
         g_mw->setVal(VISION_CTRL_ZOOM_ID, visionParams.zoom);
     }
+
+    return 0;
 }
 
 int parseCommand(connectionRecType *context)

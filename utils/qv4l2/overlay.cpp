@@ -40,18 +40,22 @@ void Overlay::vision()
     if ( br.bestblob ) {
         p.setPen(QPen(Qt::magenta,3));
 
-        if ( visionParams.overlayElements & VOE_BESTBLOB ) {
-            int w = br.bestblob->bb_x2 - br.bestblob->bb_x1;
-            int h = br.bestblob->bb_y2 - br.bestblob->bb_y1;
-            p.drawEllipse(br.bestblob->bb_x1, br.bestblob->bb_y1, w, h);
-        }
-
         if ( visionParams.overlayElements & VOE_BESTBLOB_TEXT ) {
             p.setFont( QFont("Arial", 18) );
             p.fillRect(0,0,90,30,Qt::black);
             QString s;
             s.sprintf("%d,%d", (int)br.bbdx, (int)br.bbdy);
             p.drawText(8, 22, s);
+        }
+
+        if ( visionParams.overlayElements & VOE_BESTBLOB ) {
+            int w = br.bestblob->bb_x2 - br.bestblob->bb_x1;
+            int h = br.bestblob->bb_y2 - br.bestblob->bb_y1;
+            p.drawEllipse(br.bestblob->bb_x1, br.bestblob->bb_y1, w, h);
+
+            p.setPen(QPen(Qt::magenta,1));
+            p.drawLine(br.bestblob->x - w, br.bestblob->y, br.bestblob->x + w, br.bestblob->y);
+            p.drawLine(br.bestblob->x, br.bestblob->y - h, br.bestblob->x, br.bestblob->y + h);
         }
     }
 

@@ -19,6 +19,7 @@
 
 #define VISION_CTRL_FOCUS_ID            10094858
 #define VISION_CTRL_ZOOM_ID             10094861
+#define VISION_CTRL_AUTOFOCUS_ID        10094860 // checkbox
 
 #define VOE_CROSSHAIR        1
 #define VOE_MASKAREA         2
